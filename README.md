@@ -135,8 +135,8 @@ MCPServer/
 
 1. Clone the repository:
 ```bash
-git clone <your-repo-url>
-cd MCPServer
+git clone https://github.com/AlexRuBot/rickmorty-mcp-server.git
+cd rickmorty-mcp-server
 ```
 
 2. Build and run with Docker Compose:
@@ -155,8 +155,8 @@ curl http://localhost:3000/health
 
 2. Clone and build:
 ```bash
-git clone <your-repo-url>
-cd MCPServer
+git clone https://github.com/AlexRuBot/rickmorty-mcp-server.git
+cd rickmorty-mcp-server
 swift build
 ```
 
@@ -394,33 +394,210 @@ swift build -c release
 
 ### Deployment to VDS/VPS
 
-1. Install Docker and Docker Compose on your server
+Complete guide for deploying the MCP server on a remote VPS/VDS server:
 
-2. Clone the repository:
+#### Prerequisites
+
+- Ubuntu 20.04+ / Debian 11+ (or similar Linux distribution)
+- Root or sudo access
+- At least 1GB RAM and 10GB disk space
+- Public IP address
+
+#### Step 1: Install Docker and Docker Compose
+
 ```bash
-git clone <your-repo-url>
-cd MCPServer
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Install required packages
+sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+
+# Add Docker GPG key
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Add Docker repository
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Add current user to docker group
+sudo usermod -aG docker $USER
+
+# Verify installation
+docker --version
+docker-compose --version
 ```
 
-3. Configure firewall:
+**Note**: Log out and log back in for group changes to take effect.
+
+#### Step 2: Clone and Configure
+
 ```bash
+# Clone the repository
+git clone https://github.com/AlexRuBot/rickmorty-mcp-server.git
+cd rickmorty-mcp-server
+
+# Optional: customize configuration
+nano docker-compose.yml
+# Edit environment variables if needed (PORT, LOG_LEVEL, etc.)
+```
+
+#### Step 3: Configure Firewall
+
+```bash
+# If using UFW (Ubuntu)
 sudo ufw allow 3000/tcp
+sudo ufw reload
+sudo ufw status
+
+# If using firewalld (CentOS/RHEL)
+sudo firewall-cmd --permanent --add-port=3000/tcp
+sudo firewall-cmd --reload
 ```
 
-4. Start the service:
+#### Step 4: Build and Start
+
 ```bash
+# Build and start the service
 docker-compose up -d
-```
 
-5. Enable auto-start on boot:
-```bash
-docker-compose up -d --remove-orphans
-```
-
-6. Monitor the service:
-```bash
+# Check if container is running
 docker-compose ps
+
+# View logs
+docker-compose logs -f rickmorty-mcp
+```
+
+#### Step 5: Verify Deployment
+
+```bash
+# Test health endpoint
+curl http://localhost:3000/health
+
+# Test from remote machine (replace YOUR_SERVER_IP)
+curl http://YOUR_SERVER_IP:3000/health
+
+# Expected response:
+# {"status":"ok","timestamp":"2024-12-16T..."}
+```
+
+#### Step 6: Enable Auto-Start on Boot
+
+```bash
+# Create systemd service
+sudo nano /etc/systemd/system/rickmorty-mcp.service
+```
+
+Add the following content:
+
+```ini
+[Unit]
+Description=Rick and Morty MCP Server
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/YOUR_USERNAME/rickmorty-mcp-server
+ExecStart=/usr/local/bin/docker-compose up -d
+ExecStop=/usr/local/bin/docker-compose down
+User=YOUR_USERNAME
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Replace `YOUR_USERNAME` with your actual username.
+
+```bash
+# Enable and start the service
+sudo systemctl daemon-reload
+sudo systemctl enable rickmorty-mcp.service
+sudo systemctl start rickmorty-mcp.service
+
+# Check status
+sudo systemctl status rickmorty-mcp.service
+```
+
+#### Step 7: Maintenance Commands
+
+```bash
+# View logs
 docker-compose logs -f
+
+# Restart the service
+docker-compose restart
+
+# Stop the service
+docker-compose down
+
+# Update to latest version
+git pull
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+
+# View resource usage
+docker stats rickmorty-mcp
+```
+
+#### Optional: Setup Nginx Reverse Proxy with SSL
+
+For production use with SSL/TLS:
+
+```bash
+# Install Nginx and Certbot
+sudo apt install -y nginx certbot python3-certbot-nginx
+
+# Create Nginx configuration
+sudo nano /etc/nginx/sites-available/rickmorty-mcp
+```
+
+Add configuration:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location /sse {
+        proxy_pass http://localhost:3000/sse;
+        proxy_http_version 1.1;
+        proxy_set_header Connection '';
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding off;
+    }
+}
+```
+
+```bash
+# Enable site and obtain SSL certificate
+sudo ln -s /etc/nginx/sites-available/rickmorty-mcp /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+sudo certbot --nginx -d your-domain.com
+
+# Allow HTTPS in firewall
+sudo ufw allow 'Nginx Full'
 ```
 
 ## Security Considerations
