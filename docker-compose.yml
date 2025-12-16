@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  rickmorty-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rickmorty-mcp-server
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - LOG_LEVEL=info
+      - API_BASE_URL=https://rickandmortyapi.com/api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge

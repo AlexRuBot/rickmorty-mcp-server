@@ -1,0 +1,38 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+xcuserdata/
+*.xcworkspace
+*.xcodeproj
+
+# macOS
+.DS_Store
+
+# Vapor
+DerivedData/
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+*.o
+*.a
+*.dylib
+*.so
+
+# Test results
+.test/
+
+# Environment
+.env
+.env.local
