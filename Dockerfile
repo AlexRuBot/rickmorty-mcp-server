@@ -6,7 +6,6 @@ WORKDIR /build
 COPY Package.swift .
 COPY Sources ./Sources
 
-RUN swift package resolve
 RUN swift build -c release --static-swift-stdlib
 
 # Runtime stage

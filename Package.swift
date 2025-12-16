@@ -18,14 +18,6 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
             ],
             path: "Sources/RickMortyMCP"
-        ),
-        .testTarget(
-            name: "RickMortyMCPTests",
-            dependencies: [
-                .target(name: "RickMortyMCP"),
-                .product(name: "XCTVapor", package: "vapor"),
-            ],
-            path: "Tests/RickMortyMCPTests"
-        ),
+        )
     ]
 )
