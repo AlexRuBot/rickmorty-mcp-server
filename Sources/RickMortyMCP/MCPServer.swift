@@ -8,9 +8,9 @@ actor MCPServer {
     private let logger: Logger
     private var initialized = false
 
-    init(logger: Logger) {
+    init(api: RickMortyAPI, logger: Logger) {
         self.logger = logger
-        self.api = RickMortyAPI(logger: logger)
+        self.api = api
         self.toolExecutor = ToolExecutor(api: api, logger: logger)
     }
 

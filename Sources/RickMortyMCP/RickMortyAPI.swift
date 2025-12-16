@@ -1,29 +1,22 @@
-import Foundation
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
+import Vapor
 import Logging
 
 actor RickMortyAPI {
     private let baseURL: String
-    private let session: URLSession
+    private let client: Client
     private let logger: Logger
 
-    init(baseURL: String = "https://rickandmortyapi.com/api", logger: Logger) {
+    init(baseURL: String = "https://rickandmortyapi.com/api", client: Client, logger: Logger) {
         self.baseURL = baseURL
-
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30
-        configuration.httpAdditionalHeaders = ["User-Agent": "RickMortyMCP/1.0.0"]
-        self.session = URLSession(configuration: configuration)
+        self.client = client
         self.logger = logger
     }
 
     // MARK: - Character Methods
 
     func getCharacter(id: Int) async throws -> Character {
-        let url = URL(string: "\(baseURL)/character/\(id)")!
-        return try await fetch(url: url)
+        let uri = URI(string: "\(baseURL)/character/\(id)")
+        return try await fetch(uri: uri)
     }
 
     func searchCharacters(
@@ -44,26 +37,27 @@ actor RickMortyAPI {
         if let gender = gender { queryItems.append(URLQueryItem(name: "gender", value: gender)) }
 
         components.queryItems = queryItems
-        return try await fetch(url: components.url!)
+        let uri = URI(string: components.url!.absoluteString)
+        return try await fetch(uri: uri)
     }
 
     func getMultipleCharacters(ids: [Int]) async throws -> [Character] {
         let idsString = ids.map { String($0) }.joined(separator: ",")
-        let url = URL(string: "\(baseURL)/character/\(idsString)")!
-        let result: [Character] = try await fetch(url: url)
+        let uri = URI(string: "\(baseURL)/character/\(idsString)")
+        let result: [Character] = try await fetch(uri: uri)
         return result
     }
 
     func getAllCharacters(page: Int = 1) async throws -> PaginatedResponse<Character> {
-        let url = URL(string: "\(baseURL)/character?page=\(page)")!
-        return try await fetch(url: url)
+        let uri = URI(string: "\(baseURL)/character?page=\(page)")
+        return try await fetch(uri: uri)
     }
 
     // MARK: - Location Methods
 
     func getLocation(id: Int) async throws -> Location {
-        let url = URL(string: "\(baseURL)/location/\(id)")!
-        return try await fetch(url: url)
+        let uri = URI(string: "\(baseURL)/location/\(id)")
+        return try await fetch(uri: uri)
     }
 
     func searchLocations(
@@ -80,26 +74,27 @@ actor RickMortyAPI {
         if let dimension = dimension { queryItems.append(URLQueryItem(name: "dimension", value: dimension)) }
 
         components.queryItems = queryItems
-        return try await fetch(url: components.url!)
+        let uri = URI(string: components.url!.absoluteString)
+        return try await fetch(uri: uri)
     }
 
     func getMultipleLocations(ids: [Int]) async throws -> [Location] {
         let idsString = ids.map { String($0) }.joined(separator: ",")
-        let url = URL(string: "\(baseURL)/location/\(idsString)")!
-        let result: [Location] = try await fetch(url: url)
+        let uri = URI(string: "\(baseURL)/location/\(idsString)")
+        let result: [Location] = try await fetch(uri: uri)
         return result
     }
 
     func getAllLocations(page: Int = 1) async throws -> PaginatedResponse<Location> {
-        let url = URL(string: "\(baseURL)/location?page=\(page)")!
-        return try await fetch(url: url)
+        let uri = URI(string: "\(baseURL)/location?page=\(page)")
+        return try await fetch(uri: uri)
     }
 
     // MARK: - Episode Methods
 
     func getEpisode(id: Int) async throws -> Episode {
-        let url = URL(string: "\(baseURL)/episode/\(id)")!
-        return try await fetch(url: url)
+        let uri = URI(string: "\(baseURL)/episode/\(id)")
+        return try await fetch(uri: uri)
     }
 
     func searchEpisodes(
@@ -114,19 +109,20 @@ actor RickMortyAPI {
         if let episode = episode { queryItems.append(URLQueryItem(name: "episode", value: episode)) }
 
         components.queryItems = queryItems
-        return try await fetch(url: components.url!)
+        let uri = URI(string: components.url!.absoluteString)
+        return try await fetch(uri: uri)
     }
 
     func getMultipleEpisodes(ids: [Int]) async throws -> [Episode] {
         let idsString = ids.map { String($0) }.joined(separator: ",")
-        let url = URL(string: "\(baseURL)/episode/\(idsString)")!
-        let result: [Episode] = try await fetch(url: url)
+        let uri = URI(string: "\(baseURL)/episode/\(idsString)")
+        let result: [Episode] = try await fetch(uri: uri)
         return result
     }
 
     func getAllEpisodes(page: Int = 1) async throws -> PaginatedResponse<Episode> {
-        let url = URL(string: "\(baseURL)/episode?page=\(page)")!
-        return try await fetch(url: url)
+        let uri = URI(string: "\(baseURL)/episode?page=\(page)")
+        return try await fetch(uri: uri)
     }
 
     // MARK: - Utility Methods
@@ -166,25 +162,22 @@ actor RickMortyAPI {
 
     // MARK: - Private Helper Methods
 
-    private func fetch<T: Codable>(url: URL) async throws -> T {
-        logger.info("Fetching URL: \(url.absoluteString)")
+    private func fetch<T: Codable>(uri: URI) async throws -> T {
+        logger.info("Fetching URI: \(uri.string)")
 
-        let (data, response) = try await session.data(from: url)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
+        let response = try await client.get(uri) { req in
+            req.headers.add(name: .userAgent, value: "RickMortyMCP/1.0.0")
         }
 
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 404 {
+        guard response.status == .ok else {
+            if response.status == .notFound {
                 throw APIError.notFound
             }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
+            throw APIError.httpError(statusCode: Int(response.status.code))
         }
 
         do {
-            let decoder = JSONDecoder()
-            return try decoder.decode(T.self, from: data)
+            return try response.content.decode(T.self)
         } catch {
             logger.error("Decoding error: \(error)")
             throw APIError.decodingError(error)

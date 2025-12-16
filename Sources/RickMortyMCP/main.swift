@@ -13,7 +13,8 @@ logger.info("Starting Rick and Morty MCP Server")
 
 let connectionManager = SSEConnectionManager(logger: logger)
 let sseHandler = SSEHandler(connectionManager: connectionManager, logger: logger)
-let mcpServer = MCPServer(logger: logger)
+let api = RickMortyAPI(client: app.client, logger: logger)
+let mcpServer = MCPServer(api: api, logger: logger)
 
 app.get("health") { req async -> String in
     let count = await connectionManager.connectionCount()
