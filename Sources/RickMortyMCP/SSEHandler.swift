@@ -38,7 +38,7 @@ actor SSEConnectionManager {
     }
 }
 
-class SSEHandler {
+final class SSEHandler: @unchecked Sendable {
     private let connectionManager: SSEConnectionManager
     private let logger: Logger
 
@@ -70,7 +70,7 @@ class SSEHandler {
                 let heartbeat = self.formatSSEMessage(event: "ping", data: "{}")
                 return writer.write(.buffer(.init(string: heartbeat)))
             }
-        }, count: nil, byteBufferAllocator: req.byteBufferAllocator)
+        }, byteBufferAllocator: req.byteBufferAllocator)
 
         req.eventLoop.scheduleTask(deadline: .distantFuture) {
             Task {
